@@ -50,6 +50,9 @@ if (ps5000aDeviceObj.channelCount == PicoConstants.QUAD_SCOPE && status.currentP
     [status.setChC] = invoke(ps5000aDeviceObj, 'ps5000aSetChannel', 2, 0, 1, 8, 0.0);
     [status.setChD] = invoke(ps5000aDeviceObj, 'ps5000aSetChannel', 3, 0, 1, 8, 0.0);
 end
+% Enable bandwidth filters on the channels.
+[status.bwfA] = invoke(ps5000aDeviceObj, 'ps5000aSetBandwidthFilter', 0, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
+[status.bwfB] = invoke(ps5000aDeviceObj, 'ps5000aSetBandwidthFilter', 1, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
 
 % Set resolution of the picoscope. (12 bit is enough)
 [status.setResolution, resolution] = invoke(ps5000aDeviceObj, 'ps5000aSetDeviceResolution', 12);
@@ -71,7 +74,7 @@ end
 % timebase      : 4
 % segment index : 0
 status.getTimebase2 = PicoStatus.PICO_INVALID_TIMEBASE;
-timebaseIndex = 4;
+timebaseIndex = 3;
 while (status.getTimebase2 == PicoStatus.PICO_INVALID_TIMEBASE)
     [status.getTimebase2, timeIntervalNanoseconds, maxSamples] = invoke(ps5000aDeviceObj, 'ps5000aGetTimebase2', timebaseIndex, 0);
     if (status.getTimebase2 == PicoStatus.PICO_OK)
