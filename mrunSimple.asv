@@ -1,0 +1,98 @@
+function status = mrunSimple(device, timeIntervalNanoseconds, type, a, offset, freq, dwell)
+    % mrunSimple.m Does a measurement run for a simple waveform.
+    % Inputs:
+    %   device : Reference to the picoscope device.
+    %   type : type of waveform (ps5000aEnuminfo.enPS5000AWaveType.PS5000A_SQUARE)
+    %   a : Amplitude of the sine (mV)
+    %   offset: DC offset of the sine (mV)
+    %   freq: Single or a set interval range of frequencies to cycle. (Hz)
+    %   dwell: How long to stay on single frequency (s)
+    % Outputs:
+    %   status: status of PicoScope
+    PS5000aConfig;
+    sigGenGroupObj = get(device, 'Signalgenerator');
+    sigGenGroupObj = sigGenGroupObj(1);
+    [status.setSigGenBuiltInSimple] = invoke(sigGenGroupObj, 'setSigGenBuiltInSimple', 0);
+    % Configure property value(s).    
+    set(sigGenGroupObj, 'startFrequency', min(freq));
+    set(sigGenGroupObj, 'stopFrequency', max(freq));
+    set(sigGenGroupObj, 'offsetVoltage', offset);
+    set(sigGenGroupObj, 'peakToPeakVoltage', a);
+
+    increment = 0;
+    if (numel(freq) > 1)
+        increment = mean(diff(freq));
+    end
+    
+    sweepType 			= ps5000aEnuminfo.enPS5000ASweepType.PS5000A_UP;
+    operation 			= ps5000aEnuminfo.enPS5000AExtraOperations.PS5000A_ES_OFF;
+    shots 				= 0;
+    sweeps 				= 0;
+    triggerType 		= ps5000aEnuminfo.enPS5000ASigGenTrigType.PS5000A_SIGGEN_RISING;
+    triggerSource 		= ps5000aEnuminfo.enPS5000ASigGenTrigSource.PS5000A_SIGGEN_NONE;
+    extInThresholdMv 	= 0;
+    
+    % Execute device object function(s).
+    [status.setSigGenBuiltIn] = invoke(sigGenGroupObj, 'setSigGenBuiltIn', type, increment, dwell, ...
+        sweepType, operation, shots, sweeps, triggerType, triggerSource, extInThresholdMv);
+
+
+        rapidBlockGroupObj = get(device, 'Rapidblock');
+        rapidBlockGroupObj = rapidBlockGroupObj(1);
+        % Block specific properties and functions are located in the Instrument
+        % Driver's Block group.
+        blockGroupObj = get(device, 'Block');
+        blockGroupObj = blockGroupObj(1);
+    %% 
+    % This example uses the |runBlock()| function in order to collect a block of
+    % data - if other code needs to be executed while waiting for the device to
+    % indicate that it is ready, use the |ps5000aRunBlock()| function and poll
+    % the |ps5000aIsReady()| function until the device indicates that it has
+    % data available for retrieval.
+    % Capture the blocks of data:
+    % segmentIndex : 0 
+    [status.runBlock, timeIndisposedMs] = invoke(blockGroupObj, 'runBlock', 0);
+    % Retrieve rapid block data values:
+    downsamplingRatio       = 1;
+    downsamplingRatioMode   = ps5000aEnuminfo.enPS5000ARatioMode.PS5000A_RATIO_MODE_NONE;
+    % Provide additional output arguments for the remaining channels e.g. chC
+    % for Channel C
+    numCaptures = 8;
+    [numSamples, overflow, chA, chB] = invoke(rapidBlockGroupObj, 'getRapidBlockData', numCaptures, ...
+                                        downsamplingRatio, downsamplingRatioMode);
+    %% Obtain the number of captures
+    [status.getNoOfCaptures, numCaptures] = invoke(rapidBlockGroupObj, 'ps5000aGetNoOfCaptures');
+    %% Process data
+    % Plot data values.
+    %
+    % Calculate the time period over which samples were taken for each waveform.
+    % Use the |timeIntNs| output from the |ps5000aGetTimebase2()| function or
+    % calculate the sampling interval using the main Programmer's Guide.
+    % Take into account the downsampling ratio used.
+    timeNs = double(timeIntervalNanoseconds) * downsamplingRatio * double(0:numSamples - 1);
+
+    % Channel A
+    figure1 = figure('Name','PicoScope 5000 Series (A API) Example - Rapid Block Mode Capture', ...
+        'NumberTitle', 'off');
+    plot(timeNs, chA);
+    title('Channel A');
+    xlabel('Time (ns)');
+    ylabel('Voltage (mV)');
+    grid on;
+    movegui(figure1, 'west');
+    % Channel B
+    figure2  = figure('Name','PicoScope 5000 Series (A API) Example - Rapid Block Mode Capture', ...
+        'NumberTitle', 'off');
+    plot(timeNs, chB);
+    title('Channel B - Rapid Block Capture');
+    xlabel('Time (ns)');
+    ylabel('Voltage (mV)')
+    grid on;
+    movegui(figure2, 'east');
+
+    % TODO: Actually measure during this time.
+    % pause(numel(freq) * dwell);
+
+    [status.setSigGenOff] = invoke(sigGenGroupObj, 'setSigGenOff');
+end
+
