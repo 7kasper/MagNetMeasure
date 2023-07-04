@@ -1,6 +1,6 @@
 %% === Kasper Müller PES-Project ===
 % Script for the MagNet challenge.
-% Responsible for driving picoscope measurement
+% Responsible for driving T3AFG & picoscope measurement
 
 %% Instal instructions
 % Before running make sure you istall

@@ -56,23 +56,26 @@ function [time, chA, chB, status] = mcapture(device, ti, freq, waveforms)
     blockGroupObj = blockGroupObj(1);
     % Set number of captures - can be less than or equal to the number of
     % segments.
-    numCaptures = 8;
+    numCaptures = 1;
     [status.setNoOfCaptures] = invoke(rapidBlockGroupObj, 'ps5000aSetNoOfCaptures', numCaptures);
     %% Measuring
-    % Start measuring
-    [status.runBlock, timeIndisposedMs] = invoke(blockGroupObj, 'runBlock', 0);
-    % Retrieve rapid block data values:
-    downsamplingRatio       = 1;
-    downsamplingRatioMode   = ps5000aEnuminfo.enPS5000ARatioMode.PS5000A_RATIO_MODE_NONE;
-    % Provide additional output arguments for the remaining channels e.g. chC
-    % for Channel C
-    numCaptures = 1;
-    [numSamples, overflow, chA, chB] = invoke(rapidBlockGroupObj, 'getRapidBlockData', numCaptures, ...
-                                        downsamplingRatio, downsamplingRatioMode);
-    % Number of captures
-    [status.getNoOfCaptures, numCaptures] = invoke(rapidBlockGroupObj, 'ps5000aGetNoOfCaptures');
-    % Calculate the time
-    timeNs = double(ti) * downsamplingRatio * double(0:numSamples - 1);
-    time = timeNs / 10e9;
+    % % Start measuring
+    % [status.runBlock, timeIndisposedMs] = invoke(blockGroupObj, 'runBlock', 0);
+    % % Retrieve rapid block data values:
+    % downsamplingRatio       = 1;
+    % downsamplingRatioMode   = ps5000aEnuminfo.enPS5000ARatioMode.PS5000A_RATIO_MODE_NONE;
+    % % Provide additional output arguments for the remaining channels e.g. chC
+    % % for Channel C
+    % numCaptures = 1;
+    % [numSamples, overflow, chA, chB] = invoke(rapidBlockGroupObj, 'getRapidBlockData', numCaptures, ...
+    %                                    downsamplingRatio, downsamplingRatioMode);
+    % % Number of captures
+    % [status.getNoOfCaptures, numCaptures] = invoke(rapidBlockGroupObj, 'ps5000aGetNoOfCaptures');
+    % % Calculate the time
+    % timeNs = double(ti) * downsamplingRatio * double(0:numSamples - 1);
+    % time = timeNs / 10e9;
+    % time = [];
+    % chA = [];
+    % chB = [];
     
 end

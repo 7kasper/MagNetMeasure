@@ -33,14 +33,17 @@ function [time, chA, chB, status] = mrunArbitrary(device, ti, y, ptp, offset, fr
         increment = mean(diff(freq));
     end
 
+    mcapture(device, ti, freq, waveforms);
+
+
     % Setup signal generator properties.
     sweepType 			= ps5000aEnuminfo.enPS5000ASweepType.PS5000A_UP;
     operation 			= ps5000aEnuminfo.enPS5000AExtraOperations.PS5000A_ES_OFF;
     indexMode 			= ps5000aEnuminfo.enPS5000AIndexMode.PS5000A_SINGLE;
-    shots 				= 0;
+    shots 				= 10;
     sweeps 				= 0;
     triggerType 		= ps5000aEnuminfo.enPS5000ASigGenTrigType.PS5000A_SIGGEN_RISING;
-    triggerSource 		= ps5000aEnuminfo.enPS5000ASigGenTrigSource.PS5000A_SIGGEN_SOFT_TRIG;
+    triggerSource 		= ps5000aEnuminfo.enPS5000ASigGenTrigSource.PS5000A_SIGGEN_SCOPE_TRIG;
     extInThresholdMv 	= 0;
     
     % Turn on the signal generator.
@@ -49,16 +52,22 @@ function [time, chA, chB, status] = mrunArbitrary(device, ti, y, ptp, offset, fr
 										    operation, indexMode, shots, sweeps, triggerType, triggerSource, extInThresholdMv);
     
     % Trigger the AWG
-    [status.sigGenSoftwareControl] = invoke(sigGenGroupObj, 'ps5000aSigGenSoftwareControl', 1);
-
+    
     % Dwell in start to settle the behaviour.
-    pause(dwell(1));
-
+    % pause(dwell(1));
+    
     % Record the required data.
-    [time, chA, chB] = mcapture(device, ti, freq, waveforms);
+
+    time = [];
+    chA = [];
+    chB = [];
+
+    [time, chA, chB] = mcapact(device, ti, freq, waveforms);
+
+    % [status.sigGenSoftwareControl] = invoke(sigGenGroupObj, 'ps5000aSigGenSoftwareControl', 1);
 
     % Dwell in end to settle the behaviour.
-    pause(dwell(end));
+    %pause(dwell(end));
 
     %% Turn off signal generator
     [status.setSigGenOff] = invoke(sigGenGroupObj, 'setSigGenOff');

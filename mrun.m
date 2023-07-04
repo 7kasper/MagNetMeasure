@@ -12,9 +12,9 @@ function [] = mrun(device, ti)
     x = 0:(2*pi)/(awgBufferSize - 1):2*pi;
     y = normalise(sin(x) + sin(2*x) + sin(3*x));
 
-    [time, chA, chB] = mrunSimple(device, ti, T_SINE, 1, 0, 1000, 2, 1);
+    % [time, chA, chB] = mrunSimple(device, ti, T_SINE, 0.06, 0, 1000, 2, 2);
     % (60/5.066)
-    % [time, chA, chB] = mrunArbitrary(device, ti, y, 1, 0.1, 1000, 5, 1);
+    [time, chA, chB] = mrunArbitrary(device, ti, y, 1, 0.1, 1000, 5, 1);
 
     chA = mean(chA, 2);
 

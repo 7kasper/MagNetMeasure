@@ -50,7 +50,13 @@ function [time, chA, chB, status] = mrunSimple(device, ti, type, ptp, offset, fr
     pause(dwell(1));
     
     % Record the required data.
-    [time, chA, chB] = mcapture(device, ti, freq, waveforms);
+    mcapture(device, ti, freq, waveforms);
+
+    % [time, chA, chB] = mcapact(device, ti, freq, waveforms);
+    time = [];
+    chA = [];
+    chB = [];
+
 
     % Dwell in end to settle the behaviour.
     pause(dwell(end));
