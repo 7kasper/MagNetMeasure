@@ -1,0 +1,3 @@
+[submodule "magnetchallenge"]
+	path = magnetchallenge
+	url = https://github.com/minjiechen/magnetchallenge.git
