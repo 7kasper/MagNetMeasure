@@ -7,12 +7,13 @@
 % Instrument Control Toolbox (matlab extension)
 % Picoscope Support Toolbox (matlab package)
 % Picscope 5000 series instrument driver (matlab package)
+% NI-Visa (https://www.ni.com/en-us/support/downloads/drivers/download.ni-visa.html)
 % PicoSDK (https://www.picotech.com/downloads)
 % PicoSDK C wrappers (https://github.com/picotech/picosdk-c-wrappers-binaries/tree/master)
 % Drop the (windows) C wrappers into the PicoSDK lib folder.
 % Add the lib folder to matlab path using addpath('C:\Program Files\Pico Technology\SDK\lib');
 
-% Functionality is deined in mrub.m!
+% Functionality is defined in mrun.m!
 
 %% Pre-Setup
 clc;
@@ -21,18 +22,18 @@ close all;
 %% Load configuration information
 PS5000aConfig;
 
-%% Device connection
+%% Device connections
 
-% Check if an Instrument session using the device object |ps5000aDeviceObj|
+% Check if an Instrument session using the device object |scope|
 % is still open, and if so, disconnect if the User chooses 'Yes' when prompted.
-if (exist('ps5000aDeviceObj', 'var') && ps5000aDeviceObj.isvalid && strcmp(ps5000aDeviceObj.status, 'open'))
-    openDevice = questionDialog(['Device object ps5000aDeviceObj has an open connection. ' ...
+if (exist('scope', 'var') && scope.isvalid && strcmp(scope.status, 'open'))
+    openDevice = questionDialog(['Device object scope has an open connection. ' ...
         'Do you wish to close the connection and continue?'], ...
         'Device Object Connection Open');
     if (openDevice == PicoConstants.TRUE)
         % Close connection to device.
-        disconnect(ps5000aDeviceObj);
-        delete(ps5000aDeviceObj);
+        disconnect(scope);
+        delete(scope);
     else
         return;
     end
@@ -40,22 +41,34 @@ end
 
 %% Opject creation
 
-% Create a device object. 
-ps5000aDeviceObj = icdevice('picotech_ps5000a_generic.mdd');
-connect(ps5000aDeviceObj);
+% Create a device objects. 
+scope = icdevice('picotech_ps5000a_generic.mdd');
+connect(scope);
+
+fgen = instrfind('Type', 'visa-usb', 'RsrcName', 'USB0::0xF4ED::0xEE3A::T0102C22020014::0::INSTR', 'Tag', '');
+% Create the VISA-USB object if it does not exist
+% otherwise use the object that was found.
+if isempty(fgen)
+    fgen = visa('KEYSIGHT', 'USB0::0xF4ED::0xEE3A::T0102C22020014::0::INSTR');
+else
+    fclose(fgen);
+    fgen = fgen(1);
+end
+% Connect to instrument object, obj1.
+fopen(fgen);
 
 % Set the channels (Namely turn on only A & B)
-[status.currentPowerSource] = invoke(ps5000aDeviceObj, 'ps5000aCurrentPowerSource');
-if (ps5000aDeviceObj.channelCount == PicoConstants.QUAD_SCOPE && status.currentPowerSource == PicoStatus.PICO_POWER_SUPPLY_CONNECTED)
-    [status.setChC] = invoke(ps5000aDeviceObj, 'ps5000aSetChannel', 2, 0, 1, 8, 0.0);
-    [status.setChD] = invoke(ps5000aDeviceObj, 'ps5000aSetChannel', 3, 0, 1, 8, 0.0);
+[status.currentPowerSource] = invoke(scope, 'ps5000aCurrentPowerSource');
+if (scope.channelCount == PicoConstants.QUAD_SCOPE && status.currentPowerSource == PicoStatus.PICO_POWER_SUPPLY_CONNECTED)
+    [status.setChC] = invoke(scope, 'ps5000aSetChannel', 2, 0, 1, 8, 0.0);
+    [status.setChD] = invoke(scope, 'ps5000aSetChannel', 3, 0, 1, 8, 0.0);
 end
 % Enable bandwidth filters on the channels.
-[status.bwfA] = invoke(ps5000aDeviceObj, 'ps5000aSetBandwidthFilter', 0, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
-[status.bwfB] = invoke(ps5000aDeviceObj, 'ps5000aSetBandwidthFilter', 1, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
+[status.bwfA] = invoke(scope, 'ps5000aSetBandwidthFilter', 0, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
+[status.bwfB] = invoke(scope, 'ps5000aSetBandwidthFilter', 1, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
 
 % Set resolution of the picoscope. (12 bit is enough)
-[status.setResolution, resolution] = invoke(ps5000aDeviceObj, 'ps5000aSetDeviceResolution', 12);
+[status.setResolution, resolution] = invoke(scope, 'ps5000aSetDeviceResolution', 12);
 
 %% Verify timebase index and maximum number of samples
 % Use the |ps5000aGetTimebase2()| function to query the driver as to the
@@ -76,7 +89,7 @@ end
 status.getTimebase2 = PicoStatus.PICO_INVALID_TIMEBASE;
 timebaseIndex = 3;
 while (status.getTimebase2 == PicoStatus.PICO_INVALID_TIMEBASE)
-    [status.getTimebase2, timeIntervalNanoseconds, maxSamples] = invoke(ps5000aDeviceObj, 'ps5000aGetTimebase2', timebaseIndex, 0);
+    [status.getTimebase2, timeIntervalNanoseconds, maxSamples] = invoke(scope, 'ps5000aGetTimebase2', timebaseIndex, 0);
     if (status.getTimebase2 == PicoStatus.PICO_OK)
         break;
     else
@@ -85,12 +98,12 @@ while (status.getTimebase2 == PicoStatus.PICO_INVALID_TIMEBASE)
 end
 fprintf('Timebase index: %d, sampling interval: %d ns\n', timebaseIndex, timeIntervalNanoseconds);
 % Configure the device object's |timebase| property value.
-set(ps5000aDeviceObj, 'timebase', timebaseIndex);
+set(scope, 'timebase', timebaseIndex);
 
-%% Program
-mrun(ps5000aDeviceObj, timeIntervalNanoseconds);
+%% Run Program
+mrun(scope, fgen, timeIntervalNanoseconds);
 
 %% Wrap up
-[status.stop] = invoke(ps5000aDeviceObj, 'ps5000aStop');
-disconnect(ps5000aDeviceObj);
-delete(ps5000aDeviceObj);
+[status.stop] = invoke(scope, 'ps5000aStop');
+disconnect(scope);
+delete(scope);

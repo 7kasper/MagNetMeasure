@@ -21,12 +21,14 @@ fopen(fgen);
 
 
 x = 0:(2*pi)/(awgBufferSize - 1):2*pi;
-y = int16(round(normalise(sin(x) + sin(2*x)) * ((2^15)-1)));
+y = int16(round(normalise(sin(x) + sin(2*x) + sin(3*x)) * ((2^15)-1)));
 rrr = char(typecast(y,'uint8'));
+yhex = dec2hex(y, 4);
+test = int16(y)
+% 
+ fprintf(fgen,'*RST');
 
 
-
-fprintf(fgen,'*RST');
 
 %visa_string = sprintf('C1:WVDT:BLOCK #281,WVNM,wave1,FREQ,2000.0,AMPL,4.0,OFST,0.0,PHASE,0.0,WAVEDATA,%s',data);
 visa_string = sprintf('C1:WVDT WVNM,wave2,FREQ,2000.0,AMPL,4.0,OFST,0.0,PHASE,0.0,WAVEDATA,%s',rrr);
