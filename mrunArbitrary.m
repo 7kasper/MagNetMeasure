@@ -1,9 +1,7 @@
-function [time, chA, chB, status] = mrunArbitrary(scope, fgen, ti, y, ptp, offset, freq, waveforms, dwell)
+function [time, chA, chB, status] = mrunArbitrary(devs, y, ptp, offset, freq, waveforms, dwell)
     % mrunArbitrary.m Does a measurement run for an arbitrary waveform.
     % Inputs:
-    %   scope : Reference to the picoscope scope.
-    %   fgen : Reference to the T3AFG120 waveform generator.
-    %   ti : Time interval of measurement.
+    %   devs : Reference to devices and calibration properties.
     %   y : Array of get(sigGenGroupObj, 'awgBufferSize') length with normalised Y values.
     %   ptp : Peak to peak of the waveform (V)
     %   offset: DC offset of the sine (V)
@@ -23,24 +21,38 @@ function [time, chA, chB, status] = mrunArbitrary(scope, fgen, ti, y, ptp, offse
     yint16 = int16(round(normalise(y) * ((2^15)-1)));
     % We then transform the 16 bit numbers in tuplets of raw binary bytes.
     yuint8 = char(typecast(yint16,'uint8'));
+
+    % Compensate amplifier gain:
+    if devs.calAmp ~= 0
+        fgenPtp = ptp / devs.calAmp;
+        offset = offset / devs.calAmp;
+    else
+        fgenPtp = ptp;
+    end
+    % Compensate amplifier offset:
+    if devs.calOffset ~= 0
+        offset = offset - devs.calOffset;
+    end
+
     % Phase offset TODO implement?
     ph = 0.0;
     % We can push this to the scope:
-    fwrite(fgen, sprintf('C1:WVDT WVNM,wave2,FREQ,%f,AMPL,%f,OFST,%f,PHASE,%f,WAVEDATA,%s', freq, ptp, offset, ph, yuint8));
-    fwrite(fgen,'C1:ARWV NAME,wave2');
-    fwrite(fgen,'C1:OUTP ON');
-    fwrite(fgen,'*OPC?');
-    fscanf(fgen);
+    fwrite(devs.fgen, sprintf('C1:WVDT WVNM,wave2,FREQ,%f,AMPL,%f,OFST,%f,PHASE,%f,WAVEDATA,%s', freq, fgenPtp*2, offset, ph, yuint8));
+    fwrite(devs.fgen,'C1:ARWV NAME,wave2');
+    fwrite(devs.fgen,'C1:OUTP ON,LOAD,50');
+    % Wait until fgen is ready.
+    fwrite(devs.fgen,'*OPC?');
+    fscanf(devs.fgen);
 
     % Dwell in start to settle the behaviour.
     pause(dwell(1));
 
     % Measure
-    [time, chA, chB, status] = mcapture(scope, ti, ptp, freq, waveforms);
+    [time, status, chA, chB] = mcapture(devs.scope, devs.ti, [0, 1], ptp, freq, waveforms);
 
     % Dwell in end to settle the behaviour.
     pause(dwell(end));
     
     %% Turn off signal generator
-    fwrite(fgen,'C1:OUTP OFF');
+    fwrite(devs.fgen,'C1:OUTP OFF');
 end

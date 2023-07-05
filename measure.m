@@ -27,16 +27,9 @@ PS5000aConfig;
 % Check if an Instrument session using the device object |scope|
 % is still open, and if so, disconnect if the User chooses 'Yes' when prompted.
 if (exist('scope', 'var') && scope.isvalid && strcmp(scope.status, 'open'))
-    openDevice = questionDialog(['Device object scope has an open connection. ' ...
-        'Do you wish to close the connection and continue?'], ...
-        'Device Object Connection Open');
-    if (openDevice == PicoConstants.TRUE)
-        % Close connection to device.
-        disconnect(scope);
-        delete(scope);
-    else
-        return;
-    end
+    % Close connection to device.
+    disconnect(scope);
+    delete(scope);
 end
 
 %% Opject creation
@@ -58,6 +51,9 @@ end
 % JUST VERY BIGGG
 awgBufferSize = 8e6;
 fgen.OutputBufferSize = awgBufferSize*3;
+
+devs = Devices();
+devs.bufferSize = awgBufferSize;
 
 % Connect to instrument object, fgen.
 fopen(fgen);
@@ -116,8 +112,12 @@ fprintf(fgen,"C1:SYNC ON,TYPE,MOD_CH1");
 % Small setup settle delay
 pause(1);
 
+devs.scope = scope;
+devs.fgen = fgen;
+devs.ti = timeIntervalNanoseconds;
+
 %% Run Program
-mrun(scope, fgen, timeIntervalNanoseconds);
+mrun(devs);
 
 %% Wrap up
 [status.stop] = invoke(scope, 'ps5000aStop');

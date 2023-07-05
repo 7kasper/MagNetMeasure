@@ -1,12 +1,15 @@
-function [] = mrun(scope, fgen, ti)
+function [] = mrun(devs)
     
-    awgBufferSize = fgen.OutputBufferSize/3;
-    x = 0:(2*pi)/(awgBufferSize - 1):2*pi;
-    y = normalise(sin(x) + sin(2*x) + sin(3*x));
+    [amp, offset] = mrunCal(devs, 'SINE', 0.1, 1000, 0);
+    devs.calAmp = amp;
+    devs.calOffset = offset;
 
-    [time, chA, chB] = mrunSimple(scope, fgen, ti, 'RAMP', 0.06, 0, 1000, 2, 2);
+    x = 0:(2*pi)/(devs.bufferSize - 1):2*pi;
+    y = sin(x) + sin(2*x) + sin(3*x);
+
+    [time, chA, chB] = mrunSimple(devs, 'RAMP', 0.06, 0, 1000, 2, 2);
     % (60/5.066)
-    % [time, chA, chB] = mrunArbitrary(scope, fgen, ti, y, 1, 0.1, 1000, 6, 1);
+    %[time, chA, chB] = mrunArbitrary(devs, y, 1, 0, 1000, 6, 1);
 
 
     chA = mean(chA, 2);

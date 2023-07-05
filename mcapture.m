@@ -1,55 +1,60 @@
-function [time, chA, chB, status] = mcapture(scope, ti, ptp, freq, waveforms)
+function [time, status, chA, chB, chC, chD] = mcapture(scope, ti, channels, ptp, freq, waveforms)
     % mcapture.m Runs a picoscope capture for wavforms * 1/freq.
     % Inputs:
     %   scope : Reference to the picoscope scope.
     %   ti : Time interval of measurement.
+    %   channels : array of channels to measure with.
     %   ptp : Peak to peak of the waveform, used to set channel resolution.
     %   freq: Frequenty to run at (Hz)
     %   waveforms: Amount of full waveforms to capture.
     % Outputs:
     %   time: vector of measurepoints timeindex.
+    %   status: status of PicoScope
     %   chA: Output of channel A.
     %   chB: Output of channel B.
-    %   status: status of PicoScope
+    %   chC: Output of channel C.
+    %   chD: Output of channel D.
+
 
     % Some setup
     PS5000aConfig;
 
     % Determine the input range for the picoscope to measure with max accuracy.
     if (ptp < 0.01)
-        chanARange = ps5000aEnuminfo.enPS5000ARange.PS5000A_10MV;
+        chanRange = ps5000aEnuminfo.enPS5000ARange.PS5000A_10MV;
     elseif (ptp < 0.02)
-        chanARange = ps5000aEnuminfo.enPS5000ARange.PS5000A_20MV;
+        chanRange = ps5000aEnuminfo.enPS5000ARange.PS5000A_20MV;
     elseif (ptp < 0.05)
-        chanARange = ps5000aEnuminfo.enPS5000ARange.PS5000A_50MV;
+        chanRange = ps5000aEnuminfo.enPS5000ARange.PS5000A_50MV;
     elseif (ptp < 0.1)
-        chanARange = ps5000aEnuminfo.enPS5000ARange.PS5000A_100MV;
+        chanRange = ps5000aEnuminfo.enPS5000ARange.PS5000A_100MV;
     elseif (ptp < 0.2)
-        chanARange = ps5000aEnuminfo.enPS5000ARange.PS5000A_200MV;
+        chanRange = ps5000aEnuminfo.enPS5000ARange.PS5000A_200MV;
     elseif (ptp < 0.5)
-        chanARange = ps5000aEnuminfo.enPS5000ARange.PS5000A_500MV;
+        chanRange = ps5000aEnuminfo.enPS5000ARange.PS5000A_500MV;
     elseif (ptp < 1)
-        chanARange = ps5000aEnuminfo.enPS5000ARange.PS5000A_1V;
+        chanRange = ps5000aEnuminfo.enPS5000ARange.PS5000A_1V;
     elseif (ptp < 2)
-        chanARange = ps5000aEnuminfo.enPS5000ARange.PS5000A_2V;
+        chanRange = ps5000aEnuminfo.enPS5000ARange.PS5000A_2V;
     elseif (ptp < 5)
-        chanARange = ps5000aEnuminfo.enPS5000ARange.PS5000A_5V;
+        chanRange = ps5000aEnuminfo.enPS5000ARange.PS5000A_5V;
     elseif (ptp < 10)
-        chanARange = ps5000aEnuminfo.enPS5000ARange.PS5000A_10V;
+        chanRange = ps5000aEnuminfo.enPS5000ARange.PS5000A_10V;
     elseif (ptp < 20)
-        chanARange = ps5000aEnuminfo.enPS5000ARange.PS5000A_20V;
+        chanRange = ps5000aEnuminfo.enPS5000ARange.PS5000A_20V;
     else
-        chanARange = ps5000aEnuminfo.enPS5000ARange.PS5000A_50V;
+        chanRange = ps5000aEnuminfo.enPS5000ARange.PS5000A_50V;
     end
-    chanBRange = chanARange;
 
     % Set the channels (Namely turn on only channel A and B)
     [status.currentPowerSource] = invoke(scope, 'ps5000aCurrentPowerSource');
-    [status.setChA] = invoke(scope, 'ps5000aSetChannel', 0, 1, 1, chanARange, 0.0);
-    [status.setChB] = invoke(scope, 'ps5000aSetChannel', 1, 1, 1, chanBRange, 0.0);
+
+
+    [status.setChA] = invoke(scope, 'ps5000aSetChannel', 0, ismember(0, channels), 1, chanRange, 0.0);
+    [status.setChB] = invoke(scope, 'ps5000aSetChannel', 1, ismember(1, channels), 1, chanRange, 0.0);
     if (scope.channelCount == PicoConstants.QUAD_SCOPE && status.currentPowerSource == PicoStatus.PICO_POWER_SUPPLY_CONNECTED)
-        [status.setChC] = invoke(scope, 'ps5000aSetChannel', 2, 0, 1, 8, 0.0);
-        [status.setChD] = invoke(scope, 'ps5000aSetChannel', 3, 0, 1, 8, 0.0);
+        [status.setChC] = invoke(scope, 'ps5000aSetChannel', 2, ismember(2, channels), 1, chanRange, 0.0);
+        [status.setChD] = invoke(scope, 'ps5000aSetChannel', 3, ismember(3, channels), 1, chanRange, 0.0);
     end
     % Enable bandwidth filters on the channels.
     [status.bwfA] = invoke(scope, 'ps5000aSetBandwidthFilter', 0, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
@@ -112,12 +117,18 @@ function [time, chA, chB, status] = mcapture(scope, ti, ptp, freq, waveforms)
     % Provide additional output arguments for the remaining channels e.g. chC
     % for Channel C
     numCaptures = 1;
-    [numSamples, overflow, chA, chB] = invoke(rapidBlockGroupObj, 'getRapidBlockData', numCaptures, ...
+    [numSamples, overflow, chA, chB, chC, chD] = invoke(rapidBlockGroupObj, 'getRapidBlockData', numCaptures, ...
                                        downsamplingRatio, downsamplingRatioMode);
+    % Transform channels into voltage.
+    chA = chA/1e3;
+    chB = chB/1e3;
+    chC = chC/1e3;
+    chD = chD/1e3;
     % Number of captures
     [status.getNoOfCaptures, numCaptures] = invoke(rapidBlockGroupObj, 'ps5000aGetNoOfCaptures');
     % Calculate the time
     timeNs = double(ti) * downsamplingRatio * double(0:numSamples - 1);
+    % Also put time into seconds instead of nanoseconds.
     time = timeNs / 10e9;
     
 end
