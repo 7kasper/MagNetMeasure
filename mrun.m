@@ -7,7 +7,7 @@ function [] = mrun(devs)
     x = 0:(2*pi)/(devs.bufferSize - 1):2*pi;
     y = sin(x) + sin(2*x) + sin(3*x);
 
-    [time, chA, chB] = mrunSimple(devs, 'RAMP', 0.06, 0, 1000, 2, 2);
+    [time, chA, chB] = mrunSimple(devs, 'RAMP', 0.06, 0, 100000, 100, 1);
     % (60/5.066)
     %[time, chA, chB] = mrunArbitrary(devs, y, 1, 0, 1000, 6, 1);
 
@@ -17,6 +17,7 @@ function [] = mrun(devs)
     % Channel A
     figure1 = figure('Name','PicoScope 5000 Series (A API) Example - Rapid Block Mode Capture', ...
         'NumberTitle', 'off');
+    
     plot(time, chA);
     title('Channel A');
     xlabel('Time (s)');
@@ -26,7 +27,9 @@ function [] = mrun(devs)
     % Channel B
     figure2  = figure('Name','PicoScope 5000 Series (A API) Example - Rapid Block Mode Capture', ...
         'NumberTitle', 'off');
-    plot(time, chB);
+    %plot(time, chB);
+    [timeA, bA] = wcombine(time, chA, 100);
+    plot(timeA, bA);
     title('Channel B - Rapid Block Capture');
     xlabel('Time (s)');
     ylabel('Voltage (mV)')
