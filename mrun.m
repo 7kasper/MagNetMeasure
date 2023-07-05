@@ -1,20 +1,13 @@
 function [] = mrun(scope, fgen, ti)
     
-    % Local setup:
-    PS5000aConfig;
-    sigGenGroupObj = get(scope, 'Signalgenerator');
-    sigGenGroupObj = sigGenGroupObj(1);
-    % Short cuts:
-    T_SINE = ps5000aEnuminfo.enPS5000AWaveType.PS5000A_SINE;
-    % T_SQUARE = ps5000aEnuminfo.enPS5000AWaveType.PS5000A_SQUARE;
-    
-    awgBufferSize = get(sigGenGroupObj, 'awgBufferSize');
+    awgBufferSize = fgen.OutputBufferSize/3;
     x = 0:(2*pi)/(awgBufferSize - 1):2*pi;
     y = normalise(sin(x) + sin(2*x) + sin(3*x));
 
-    % [time, chA, chB] = mrunSimple(scope, ti, T_SINE, 0.06, 0, 1000, 2, 2);
+    [time, chA, chB] = mrunSimple(scope, fgen, ti, 'RAMP', 0.06, 0, 1000, 2, 2);
     % (60/5.066)
-    [time, chA, chB] = mrunArbitrary(scope, ti, y, 1, 0.1, 1000, 5, 1);
+    % [time, chA, chB] = mrunArbitrary(scope, fgen, ti, y, 1, 0.1, 1000, 6, 1);
+
 
     chA = mean(chA, 2);
 
@@ -24,7 +17,7 @@ function [] = mrun(scope, fgen, ti)
     plot(time, chA);
     title('Channel A');
     xlabel('Time (s)');
-    ylabel('Voltage (mV)');
+    ylabel('Voltage (V)');
     grid on;
     movegui(figure1, 'west');
     % Channel B

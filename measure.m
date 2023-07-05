@@ -54,21 +54,28 @@ else
     fclose(fgen);
     fgen = fgen(1);
 end
-% Connect to instrument object, obj1.
+
+% JUST VERY BIGGG
+awgBufferSize = 8e6;
+fgen.OutputBufferSize = awgBufferSize*3;
+
+% Connect to instrument object, fgen.
 fopen(fgen);
 
-% Set the channels (Namely turn on only A & B)
-[status.currentPowerSource] = invoke(scope, 'ps5000aCurrentPowerSource');
-if (scope.channelCount == PicoConstants.QUAD_SCOPE && status.currentPowerSource == PicoStatus.PICO_POWER_SUPPLY_CONNECTED)
-    [status.setChC] = invoke(scope, 'ps5000aSetChannel', 2, 0, 1, 8, 0.0);
-    [status.setChD] = invoke(scope, 'ps5000aSetChannel', 3, 0, 1, 8, 0.0);
-end
-% Enable bandwidth filters on the channels.
-[status.bwfA] = invoke(scope, 'ps5000aSetBandwidthFilter', 0, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
-[status.bwfB] = invoke(scope, 'ps5000aSetBandwidthFilter', 1, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
+% % Set the channels (Namely turn off everything available)
+% [status.currentPowerSource] = invoke(scope, 'ps5000aCurrentPowerSource');
+% [status.setChA] = invoke(scope, 'ps5000aSetChannel', 0, 1, 1, 8, 0.0);
+% [status.setChB] = invoke(scope, 'ps5000aSetChannel', 1, 0, 1, 8, 0.0);
+% if (scope.channelCount == PicoConstants.QUAD_SCOPE && status.currentPowerSource == PicoStatus.PICO_POWER_SUPPLY_CONNECTED)
+%     [status.setChC] = invoke(scope, 'ps5000aSetChannel', 2, 0, 1, 8, 0.0);
+%     [status.setChD] = invoke(scope, 'ps5000aSetChannel', 3, 0, 1, 8, 0.0);
+% end
+% % Enable bandwidth filters on the channels.
+% [status.bwfA] = invoke(scope, 'ps5000aSetBandwidthFilter', 0, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
+% [status.bwfB] = invoke(scope, 'ps5000aSetBandwidthFilter', 1, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
 
-% Set resolution of the picoscope. (12 bit is enough)
-[status.setResolution, resolution] = invoke(scope, 'ps5000aSetDeviceResolution', 12);
+% % Set resolution of the picoscope. (12 bit is enough)
+% [status.setResolution, resolution] = invoke(scope, 'ps5000aSetDeviceResolution', 12);
 
 %% Verify timebase index and maximum number of samples
 % Use the |ps5000aGetTimebase2()| function to query the driver as to the
@@ -100,6 +107,15 @@ fprintf('Timebase index: %d, sampling interval: %d ns\n', timebaseIndex, timeInt
 % Configure the device object's |timebase| property value.
 set(scope, 'timebase', timebaseIndex);
 
+% Reset the function generator.
+fprintf(fgen,'*RST');
+fprintf(fgen,'C1:OUTP OFF');
+% Turn on the sync channel
+fprintf(fgen,"C1:SYNC ON,TYPE,MOD_CH1");
+
+% Small setup settle delay
+pause(1);
+
 %% Run Program
 mrun(scope, fgen, timeIntervalNanoseconds);
 
@@ -107,3 +123,6 @@ mrun(scope, fgen, timeIntervalNanoseconds);
 [status.stop] = invoke(scope, 'ps5000aStop');
 disconnect(scope);
 delete(scope);
+% fclose(fgen);
+% delete(fgen);
+% clear fgen;

@@ -1,6 +1,6 @@
 %% Instrument Connection
 
-% Find a VISA-USB object.
+% Find a VISA-USB object. 
 fgen = instrfind('Type', 'visa-usb', 'RsrcName', 'USB0::0xF4ED::0xEE3A::T0102C22020014::0::INSTR', 'Tag', '');
 
 % Create the VISA-USB object if it does not exist
@@ -13,12 +13,9 @@ else
 end
 
 % Connect to instrument object, fgen.
-awgBufferSize = 10000;
-fgen.OutputBufferSize = awgBufferSize*10;
+awgBufferSize = 8e6; % We just do the maximum that we can.
+fgen.OutputBufferSize = awgBufferSize*3;
 fopen(fgen);
-
-
-
 
 x = 0:(2*pi)/(awgBufferSize - 1):2*pi;
 y = int16(round(normalise(sin(x) + sin(2*x)) * ((2^15)-1)));
@@ -27,14 +24,13 @@ rrr = char(typecast(y,'uint8'));
 
 
 fprintf(fgen,'*RST');
+ph = 0.0;
 
 %visa_string = sprintf('C1:WVDT:BLOCK #281,WVNM,wave1,FREQ,2000.0,AMPL,4.0,OFST,0.0,PHASE,0.0,WAVEDATA,%s',data);
-visa_string = sprintf('C1:WVDT WVNM,wave2,FREQ,2000.0,AMPL,4.0,OFST,0.0,PHASE,0.0,WAVEDATA,%s',rrr);
-fwrite(fgen,visa_string);
+fwrite(fgen, sprintf('C1:WVDT WVNM,wave2,FREQ,%s,AMPL,%s,OFST,%s,PHASE,%s,WAVEDATA,%s',rrr));
 fwrite(fgen,'C1:ARWV NAME,wave2');
 fwrite(fgen,'C1:OUTP OFF');
-fwrite(fgen,'C1:OUTP ON')
-fclose(f);
+fwrite(fgen,'C1:OUTP ON');
 
 
 

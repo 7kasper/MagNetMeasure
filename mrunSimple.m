@@ -1,9 +1,10 @@
-function [time, chA, chB, status] = mrunSimple(device, ti, type, ptp, offset, freq, waveforms, dwell)
+function [time, chA, chB, status] = mrunSimple(scope, fgen, ti, type, ptp, offset, freq, waveforms, dwell)
     % mrunSimple.m Does a measurement run for a simple waveform.
     % Inputs:
-    %   device : Reference to the picoscope device.
+    %   scope : Reference to the picoscope scope.
+    %   fgen : Reference to the T3AFG120 waveform generator.
     %   ti : Time interval of measurement.
-    %   type : type of waveform (ps5000aEnuminfo.enPS5000AWaveType.PS5000A_SQUARE)
+    %   type : type of waveform (SINE, SQUARE, RAMP, PULSE, NOISE, DC, PRBS, IQ)
     %   ptp : Peak to peak of the waveform (V)
     %   offset: DC offset of the sine (V)
     %   freq: Frequenty to run at (Hz)
@@ -15,52 +16,24 @@ function [time, chA, chB, status] = mrunSimple(device, ti, type, ptp, offset, fr
     %   chB: Output of channel B.
     %   status: status of PicoScope
 
-    % Some setup
-    PS5000aConfig;
-    sigGenGroupObj = get(device, 'Signalgenerator');
-    sigGenGroupObj = sigGenGroupObj(1);
-    [status.setSigGenBuiltInSimple] = invoke(sigGenGroupObj, 'setSigGenBuiltInSimple', 0);
-
-    % Configure property value(s).    
-    set(sigGenGroupObj, 'startFrequency', min(freq));
-    set(sigGenGroupObj, 'stopFrequency', max(freq));
-    set(sigGenGroupObj, 'offsetVoltage', offset*1000);
-    set(sigGenGroupObj, 'peakToPeakVoltage', ptp*1000);
-
-    % When multiple frequencies are given (not supported for capturing yet)
-    increment = 0;
-    if (numel(freq) > 1)
-        increment = mean(diff(freq));
-    end
-
-    % Setup signal generator properties.
-    sweepType 			= ps5000aEnuminfo.enPS5000ASweepType.PS5000A_UP;
-    operation 			= ps5000aEnuminfo.enPS5000AExtraOperations.PS5000A_ES_OFF;
-    shots 				= 0;
-    sweeps 				= 0;
-    triggerType 		= ps5000aEnuminfo.enPS5000ASigGenTrigType.PS5000A_SIGGEN_RISING;
-    triggerSource 		= ps5000aEnuminfo.enPS5000ASigGenTrigSource.PS5000A_SIGGEN_NONE;
-    extInThresholdMv 	= 0;
-    
-    % Turn on the signal generator.
-    [status.setSigGenBuiltIn] = invoke(sigGenGroupObj, 'setSigGenBuiltIn', type, increment, dwell*1.1, ...
-        sweepType, operation, shots, sweeps, triggerType, triggerSource, extInThresholdMv);
+    % Phase offset TODO implement?
+    ph = 0.0;
+    % We can push this to the scope:
+    fwrite(fgen, sprintf('C1:BSWV   WVTP,%s,FRQ,%f,AMP,%f,OFST,%f,PHSE,%f', type, freq, ptp, offset, ph));
+    fwrite(fgen,'C1:OUTP ON');
+    fwrite(fgen,'*OPC?');
+    fscanf(fgen);
 
     % Dwell in start to settle the behaviour.
     pause(dwell(1));
-    
-    % Record the required data.
-    mcapture(device, ti, freq, waveforms);
 
-    % [time, chA, chB] = mcapact(device, ti, freq, waveforms);
-    time = [];
-    chA = [];
-    chB = [];
-
+    % Measure
+    [time, chA, chB, status] = mcapture(scope, ti, ptp, freq, waveforms);
 
     % Dwell in end to settle the behaviour.
     pause(dwell(end));
-
-    [status.setSigGenOff] = invoke(sigGenGroupObj, 'setSigGenOff');
+    
+    %% Turn off signal generator
+    fwrite(fgen,'C1:OUTP OFF');
 end
 

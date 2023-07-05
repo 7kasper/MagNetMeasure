@@ -1,194 +1,128 @@
 %% === Kasper Müller PES-Project ===
 % Script for the MagNet challenge.
-% Responsible for driving picoscope measurement
+% Responsible for driving T3AFG & picoscope measurement
 
 %% Instal instructions
 % Before running make sure you istall
 % Instrument Control Toolbox (matlab extension)
 % Picoscope Support Toolbox (matlab package)
 % Picscope 5000 series instrument driver (matlab package)
+% NI-Visa (https://www.ni.com/en-us/support/downloads/drivers/download.ni-visa.html)
 % PicoSDK (https://www.picotech.com/downloads)
 % PicoSDK C wrappers (https://github.com/picotech/picosdk-c-wrappers-binaries/tree/master)
 % Drop the (windows) C wrappers into the PicoSDK lib folder.
 % Add the lib folder to matlab path using addpath('C:\Program Files\Pico Technology\SDK\lib');
 
-%% Options
+% Functionality is defined in mrun.m!
+
+%% Pre-Setup
 clc;
 close all;
 
 %% Load configuration information
 PS5000aConfig;
 
-%% Device connection
+%% Device connections
 
-% Check if an Instrument session using the device object |ps5000aDeviceObj|
+% Check if an Instrument session using the device object |scope|
 % is still open, and if so, disconnect if the User chooses 'Yes' when prompted.
-if (exist('ps5000aDeviceObj', 'var') && ps5000aDeviceObj.isvalid && strcmp(ps5000aDeviceObj.status, 'open'))
-    openDevice = questionDialog(['Device object ps5000aDeviceObj has an open connection. ' ...
+if (exist('scope', 'var') && scope.isvalid && strcmp(scope.status, 'open'))
+    openDevice = questionDialog(['Device object scope has an open connection. ' ...
         'Do you wish to close the connection and continue?'], ...
         'Device Object Connection Open');
     if (openDevice == PicoConstants.TRUE)
         % Close connection to device.
-        disconnect(ps5000aDeviceObj);
-        delete(ps5000aDeviceObj);
+        disconnect(scope);
+        delete(scope);
     else
         return;
     end
 end
 
-% Create a device object. 
-ps5000aDeviceObj = icdevice('picotech_ps5000a_generic.mdd');
-connect(ps5000aDeviceObj);
-sigGenGroupObj = get(ps5000aDeviceObj, 'Signalgenerator');
-sigGenGroupObj = sigGenGroupObj(1);
+%% Opject creation
 
-% Find 
+% Create a device objects. 
+scope = icdevice('picotech_ps5000a_generic.mdd');
+connect(scope);
 
-%% Function generator - simple
-% Output a sine wave, 2000 mVpp, 0 mV offset, 1000 Hz (uses preset values
-% for offset, peak to peak voltage and frequency from the Signalgenerator
-% groups's properties).
+fgen = instrfind('Type', 'visa-usb', 'RsrcName', 'USB0::0xF4ED::0xEE3A::T0102C22020014::0::INSTR', 'Tag', '');
+% Create the VISA-USB object if it does not exist
+% otherwise use the object that was found.
+if isempty(fgen)
+    fgen = visa('KEYSIGHT', 'USB0::0xF4ED::0xEE3A::T0102C22020014::0::INSTR');
+else
+    fclose(fgen);
+    fgen = fgen(1);
+end
 
-% waveType : 0 (ps5000aEnuminfo.enPS5000AWaveType.PS5000A_SINE)
+% JUST VERY BIGGG
+awgBufferSize = 8e6;
+fgen.OutputBufferSize = awgBufferSize*3;
 
-[status.setSigGenBuiltInSimple] = invoke(sigGenGroupObj, 'setSigGenBuiltInSimple', 0);
+% Connect to instrument object, fgen.
+fopen(fgen);
 
-%%
-% 
-% <<../images/ps5000a_sine_wave_1kHz.PNG>>
-% 
+% Set the channels (Namely turn off everything available)
+[status.currentPowerSource] = invoke(scope, 'ps5000aCurrentPowerSource');
+[status.setChA] = invoke(scope, 'ps5000aSetChannel', 0, 0, 1, 8, 0.0);
+[status.setChB] = invoke(scope, 'ps5000aSetChannel', 1, 0, 1, 8, 0.0);
+if (scope.channelCount == PicoConstants.QUAD_SCOPE && status.currentPowerSource == PicoStatus.PICO_POWER_SUPPLY_CONNECTED)
+    [status.setChC] = invoke(scope, 'ps5000aSetChannel', 2, 0, 1, 8, 0.0);
+    [status.setChD] = invoke(scope, 'ps5000aSetChannel', 3, 0, 1, 8, 0.0);
+end
+% Enable bandwidth filters on the channels.
+[status.bwfA] = invoke(scope, 'ps5000aSetBandwidthFilter', 0, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
+[status.bwfB] = invoke(scope, 'ps5000aSetBandwidthFilter', 1, ps5000aEnuminfo.enPS5000ABandwidthLimiter.PS5000A_BW_20MHZ);
 
-%% Function generator - sweep frequency
-% Output a square wave, 2400 mVpp, 500 mV offset, and sweep continuously
-% from 500 Hz to 50 Hz in steps of 50 Hz.
+% Set resolution of the picoscope. (12 bit is enough)
+[status.setResolution, resolution] = invoke(scope, 'ps5000aSetDeviceResolution', 12);
 
-% Configure property value(s).
-
-set(sigGenGroupObj, 'startFrequency', 50.0);
-set(sigGenGroupObj, 'stopFrequency', 500.0);
-set(sigGenGroupObj, 'offsetVoltage', 500.0);
-set(sigGenGroupObj, 'peakToPeakVoltage', 2400.0);
-
-waveType 			= ps5000aEnuminfo.enPS5000AWaveType.PS5000A_SQUARE;
-increment 			= 50.0; % Hz
-dwellTime 			= 10;    % seconds
-sweepType 			= ps5000aEnuminfo.enPS5000ASweepType.PS5000A_DOWN;
-operation 			= ps5000aEnuminfo.enPS5000AExtraOperations.PS5000A_ES_OFF;
-shots 				= 0;
-sweeps 				= 0;
-triggerType 		= ps5000aEnuminfo.enPS5000ASigGenTrigType.PS5000A_SIGGEN_RISING;
-triggerSource 		= ps5000aEnuminfo.enPS5000ASigGenTrigSource.PS5000A_SIGGEN_NONE;
-extInThresholdMv 	= 0;
-
-% Execute device object function(s).
-[status.setSigGenBuiltIn] = invoke(sigGenGroupObj, 'setSigGenBuiltIn', waveType, increment, dwellTime, ...
-                                sweepType, operation, shots, sweeps, triggerType, triggerSource, extInThresholdMv);
-                            
-%%
-% 
-% <<../images/ps5000a_square_wave_sweep_500Hz.PNG>>
-% 
-
-% WAIT
-pause(10);
-
-%%
-% 
-% <<../images/ps5000a_square_wave_sweep_250Hz.PNG>>
-% 
-
-%% Turn off signal generator
-% Sets the output to 0 V DC.
-
-[status.setSigGenOff] = invoke(sigGenGroupObj, 'setSigGenOff');
-
-%%
-% 
-% <<../images/ps5000a_sig_gen_off.PNG>>
-% 
-
-%% Arbitrary waveform generator - set parameters
-% Set parameters (2000 mVpp, 0 mV offset, 1000 Hz frequency) and define an
-% arbitrary waveform.
-
-% Configure property value(s).
-set(sigGenGroupObj, 'startFrequency', 1000);
-set(sigGenGroupObj, 'stopFrequency', 1000);
-set(sigGenGroupObj, 'offsetVoltage', 0.0);
-set(sigGenGroupObj, 'peakToPeakVoltage', 2000.0);
-
-%% 
-% Define an Arbitrary Waveform - values must be in the range -1 to +1.
-% Arbitrary waveforms can also be read in from text and csv files using
-% <matlab:doc('dlmread') |dlmread|> and <matlab:doc('csvread') |csvread|>
-% respectively or use the |importAWGFile| function from the <https://uk.mathworks.com/matlabcentral/fileexchange/53681-picoscope-support-toolbox PicoScope
-% Support Toolbox>.
+%% Verify timebase index and maximum number of samples
+% Use the |ps5000aGetTimebase2()| function to query the driver as to the
+% suitability of using a particular timebase index and the maximum number
+% of samples available in the segment selected, then set the |timebase|
+% property if required.
 %
-% Any AWG files created using the PicoScope 6 application can be read using
-% the above method.
-
-awgBufferSize = get(sigGenGroupObj, 'awgBufferSize');
-x = 0:(2*pi)/(awgBufferSize - 1):2*pi;
-y = normalise(sin(x) + sin(2*x));
-
-%% Arbitrary waveform generator - simple
-% Output an arbitrary waveform with constant frequency (defined above).
-
-% Arb. Waveform : y (defined above)
-
-[status.setSigGenArbitrarySimple] = invoke(sigGenGroupObj, 'setSigGenArbitrarySimple', y);
-
-%%
-% 
-% <<../images/ps5000a_arbitrary_waveform.PNG>>
-% 
-pause(10);
-
-%% Turn off signal generator
-% Sets the output to 0 V DC.
-
-[status.setSigGenOff] = invoke(sigGenGroupObj, 'setSigGenOff');
-
-%% Arbitrary waveform generator - output shots
-% Output 2 cycles of an arbitrary waveform using a software trigger.
+% To use the fastest sampling interval possible, enable one analog
+% channel and turn off all other channels.
 %
-% Note that the signal generator will output the value coresponding to the
-% first sample in the arbitrary waveform until the trigger event occurs.
+% Use a while loop to query the function until the status indicates that a
+% valid timebase index has been selected. In this example, the timebase
+% index of 65 is valid.
+% Initial call to ps5000aGetTimebase2() with parameters:
+%
+% timebase      : 4
+% segment index : 0
+status.getTimebase2 = PicoStatus.PICO_INVALID_TIMEBASE;
+timebaseIndex = 3;
+while (status.getTimebase2 == PicoStatus.PICO_INVALID_TIMEBASE)
+    [status.getTimebase2, timeIntervalNanoseconds, maxSamples] = invoke(scope, 'ps5000aGetTimebase2', timebaseIndex, 0);
+    if (status.getTimebase2 == PicoStatus.PICO_OK)
+        break;
+    else
+        timebaseIndex = timebaseIndex + 1;
+    end    
+end
+fprintf('Timebase index: %d, sampling interval: %d ns\n', timebaseIndex, timeIntervalNanoseconds);
+% Configure the device object's |timebase| property value.
+set(scope, 'timebase', timebaseIndex);
 
-% Set parameters
-offsetMv 			= 0;
-pkToPkMv 			= 2000;
-increment 			= 0; % Hz
-dwellTime 			= 0; % seconds
-sweepType 			= ps5000aEnuminfo.enPS5000ASweepType.PS5000A_UP;
-operation 			= ps5000aEnuminfo.enPS5000AExtraOperations.PS5000A_ES_OFF;
-indexMode 			= ps5000aEnuminfo.enPS5000AIndexMode.PS5000A_SINGLE;
-shots 				= 2;
-sweeps 				= 0;
-triggerType 		= ps5000aEnuminfo.enPS5000ASigGenTrigType.PS5000A_SIGGEN_RISING;
-triggerSource 		= ps5000aEnuminfo.enPS5000ASigGenTrigSource.PS5000A_SIGGEN_SOFT_TRIG;
-extInThresholdMv 	= 0;
+% Reset the function generator.
+fprintf(fgen,'*RST');
+fprintf(fgen,'C1:OUTP OFF');
+% Turn on the sync channel
+fprintf(fgen,"C1:SYNC ON,TYPE,MOD_CH1");
 
-[status.setSigGenArbitrary] = invoke(sigGenGroupObj, 'setSigGenArbitrary', increment, dwellTime, y, sweepType, ...
-										operation, indexMode, shots, sweeps, triggerType, triggerSource, extInThresholdMv);
+% Small setup settle delay
+pause(1);
 
-% Trigger the AWG
+%% Run Program
+mrun(scope, fgen, timeIntervalNanoseconds);
 
-% State : 1 (a non-zero value will trigger the output)
-[status.sigGenSoftwareControl] = invoke(sigGenGroupObj, 'ps5000aSigGenSoftwareControl', 1);
-
-%%
-% 
-% <<../images/ps5000a_arbitrary_waveform_shots.PNG>>
-% 
-
-%% Turn off signal generator
-% Sets the output to 0 V DC.
-
-[status.setSigGenOff] = invoke(sigGenGroupObj, 'setSigGenOff');
-
-%% Disconnect device
-% Disconnect device object from hardware.
-
-disconnect(ps5000aDeviceObj);
-delete(ps5000aDeviceObj);
+%% Wrap up
+[status.stop] = invoke(scope, 'ps5000aStop');
+disconnect(scope);
+delete(scope);
+% fclose(fgen);
+% delete(fgen);
+% clear fgen;
